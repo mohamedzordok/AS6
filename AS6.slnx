@@ -1,3 +1,300 @@
-<Solution>
-  <Project Path="AS6/AS6.csproj" />
-</Solution>
+using System;
+
+namespace SmartDelivery
+{
+    // ------------------------------------------------------------
+    // 1) DeliveryAddress : value type (struct)
+    // ------------------------------------------------------------
+    public struct DeliveryAddress
+    {
+        public string City;
+        public string Street;
+        public int BuildingNumber;
+
+        public DeliveryAddress(string city, string street, int buildingNumber)
+        {
+            City = city;
+            Street = street;
+            BuildingNumber = buildingNumber;
+        }
+
+        public string GetFullAddress()
+        {
+            return BuildingNumber + " " + Street + ", " + City;
+        }
+    }
+
+    // ------------------------------------------------------------
+    // 2) Shipment : private fields + validated public properties
+    // ------------------------------------------------------------
+    public struct Shipment
+    {
+        private string _trackingCode;
+        private string _description;
+        private double _weight;
+        private decimal _deliveryFee;
+
+        // Read-only from outside (private setter, used only by constructors)
+        public string TrackingCode
+        {
+            get { return _trackingCode; }
+            private set
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                    _trackingCode = value;
+            }
+        }
+
+        public string Description
+        {
+            get { return _description; }
+            set
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                    _description = value;
+            }
+        }
+
+        public double Weight
+        {
+            get { return _weight; }
+            set
+            {
+                if (value > 0)
+                    _weight = value;
+            }
+        }
+
+        // Public getter, private setter
+        public decimal DeliveryFee
+        {
+            get { return _deliveryFee; }
+            private set
+            {
+                if (value > 0)
+                    _deliveryFee = value;
+            }
+        }
+
+        public DeliveryAddress Destination { get; set; }
+
+        // Calculated on demand, not stored
+        public decimal EstimatedCost
+        {
+            get { return _deliveryFee + (decimal)_weight * 5m; }
+        }
+
+        // Constructor 1: default values
+        public Shipment(string trackingCode) : this()
+        {
+            _trackingCode = "UNKNOWN";   // fallback if the given code is invalid
+            _description = "Unknown";
+            _weight = 1;
+            _deliveryFee = 50;
+            Destination = new DeliveryAddress("Unknown", "Unknown", 0);
+
+            TrackingCode = trackingCode; // ignored if invalid
+        }
+
+        // Constructor 2: all values (reuses constructor 1, then applies validation)
+        public Shipment(string trackingCode, string description, double weight,
+                        decimal deliveryFee, DeliveryAddress destination)
+            : this(trackingCode)
+        {
+            Description = description;
+            Weight = weight;
+            DeliveryFee = deliveryFee;
+            Destination = destination;
+        }
+
+        public void UpdateDeliveryFee(decimal newFee)
+        {
+            if (newFee > 0)
+                DeliveryFee = newFee;
+        }
+
+        public void PrintShipment()
+        {
+            Console.WriteLine("Tracking Code: " + TrackingCode);
+            Console.WriteLine("Description: " + Description);
+            Console.WriteLine("Weight: " + Weight + " KG");
+            Console.WriteLine("Delivery Fee: " + DeliveryFee + " EGP");
+            Console.WriteLine("Destination: " + Destination.GetFullAddress());
+            Console.WriteLine("Estimated Cost: " + EstimatedCost + " EGP");
+        }
+    }
+
+    // ------------------------------------------------------------
+    // 3) DeliveryCenter : holds up to 10 shipments
+    // ------------------------------------------------------------
+    public struct DeliveryCenter
+    {
+        private const int Capacity = 10;
+        private Shipment[] _shipments;   // null until first use (a struct has no default ctor)
+
+        private void EnsureStorage()
+        {
+            if (_shipments == null)
+                _shipments = new Shipment[Capacity];
+        }
+
+        // Integer indexer
+        public Shipment this[int index]
+        {
+            get
+            {
+                if (_shipments == null || index < 0 || index >= Capacity)
+                    return default(Shipment);
+                return _shipments[index];
+            }
+            set
+            {
+                if (index < 0 || index >= Capacity)
+                    return;                 // invalid index: do nothing
+                EnsureStorage();
+                _shipments[index] = value;
+            }
+        }
+
+        // String indexer: search by tracking code
+        public Shipment this[string trackingCode]
+        {
+            get
+            {
+                if (_shipments == null || trackingCode == null)
+                    return default(Shipment);
+
+                for (int i = 0; i < Capacity; i++)
+                {
+                    if (_shipments[i].TrackingCode != null &&
+                        _shipments[i].TrackingCode == trackingCode)
+                        return _shipments[i];
+                }
+                return default(Shipment);
+            }
+        }
+
+        public bool AddShipment(Shipment shipment)
+        {
+            EnsureStorage();
+            for (int i = 0; i < Capacity; i++)
+            {
+                // an empty slot is a default(Shipment), whose TrackingCode is null
+                if (_shipments[i].TrackingCode == null)
+                {
+                    _shipments[i] = shipment;
+                    return true;
+                }
+            }
+            return false;                   // center is full
+        }
+    }
+
+    // ------------------------------------------------------------
+    // 4) Main
+    // ------------------------------------------------------------
+    internal class Program
+    {
+        static string ReadText(string label)
+        {
+            while (true)
+            {
+                Console.Write(label + ": ");
+                string s = Console.ReadLine();
+                if (!string.IsNullOrWhiteSpace(s))
+                    return s.Trim();
+                Console.WriteLine("Value cannot be empty. Try again.");
+            }
+        }
+
+        static double ReadPositiveDouble(string label)
+        {
+            while (true)
+            {
+                Console.Write(label + ": ");
+                double v;
+                if (double.TryParse(Console.ReadLine(), out v) && v > 0)
+                    return v;
+                Console.WriteLine("Enter a number greater than 0.");
+            }
+        }
+
+        static decimal ReadPositiveDecimal(string label)
+        {
+            while (true)
+            {
+                Console.Write(label + ": ");
+                decimal v;
+                if (decimal.TryParse(Console.ReadLine(), out v) && v > 0)
+                    return v;
+                Console.WriteLine("Enter a number greater than 0.");
+            }
+        }
+
+        static int ReadPositiveInt(string label)
+        {
+            while (true)
+            {
+                Console.Write(label + ": ");
+                int v;
+                if (int.TryParse(Console.ReadLine(), out v) && v > 0)
+                    return v;
+                Console.WriteLine("Enter a whole number greater than 0.");
+            }
+        }
+
+        static void Main(string[] args)
+        {
+            DeliveryCenter center = new DeliveryCenter();
+
+            // Read and add three shipments
+            for (int i = 1; i <= 3; i++)
+            {
+                Console.WriteLine("\nEnter Shipment " + i + " Data");
+                string code = ReadText("Tracking Code");
+                string description = ReadText("Description");
+                double weight = ReadPositiveDouble("Weight");
+                decimal fee = ReadPositiveDecimal("Delivery Fee");
+                string city = ReadText("City");
+                string street = ReadText("Street");
+                int building = ReadPositiveInt("Building Number");
+
+                DeliveryAddress address = new DeliveryAddress(city, street, building);
+                Shipment shipment = new Shipment(code, description, weight, fee, address);
+
+                if (center.AddShipment(shipment))
+                    Console.WriteLine("Shipment added successfully.");
+                else
+                    Console.WriteLine("Delivery center is full.");
+            }
+
+            // Print using the integer indexer
+            Console.WriteLine("\n--- All Shipments ---");
+            for (int i = 0; i < 3; i++)
+            {
+                center[i].PrintShipment();
+                Console.WriteLine();
+            }
+
+            // Search using the string indexer
+            Console.Write("Enter a tracking code to search: ");
+            string searchCode = Console.ReadLine();
+            Shipment found = center[searchCode];
+
+            if (found.TrackingCode != null)
+                Console.WriteLine("Shipment found: " + found.TrackingCode + " - " + found.Description);
+            else
+                Console.WriteLine("Shipment not found.");
+
+            // Struct copy behavior
+            Console.WriteLine("\n--- Struct Copy Test ---");
+            DeliveryAddress original = new DeliveryAddress("Cairo", "Tahrir Street", 15);
+            DeliveryAddress copy = original;          // a full copy of the data
+            copy.BuildingNumber = 20;
+            copy.Street = "Makram Ebeid Street";
+
+            Console.WriteLine("Original Address: " + original.GetFullAddress());
+            Console.WriteLine("Copied Address: " + copy.GetFullAddress());
+        }
+    }
+}
