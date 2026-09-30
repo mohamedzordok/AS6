@@ -2,9 +2,7 @@ using System;
 
 namespace SmartDelivery
 {
-    // ------------------------------------------------------------
     // 1) DeliveryAddress : value type (struct)
-    // ------------------------------------------------------------
     public struct DeliveryAddress
     {
         public string City;
